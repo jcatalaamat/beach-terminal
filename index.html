@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Astral Terminal</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: #0a0e14;
+    color: #e6edf3;
+    font-family: -apple-system, system-ui, 'SF Pro', sans-serif;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .tab-bar {
+    display: flex;
+    align-items: center;
+    background: #12161d;
+    border-bottom: 1px solid #1e2530;
+    flex-shrink: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0 4px;
+    height: 48px;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
+
+  .tab {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    margin: 4px 2px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #555d6b;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.15s;
+    white-space: nowrap;
+    position: relative;
+  }
+  .tab.active { color: #c9d1d9; background: #1c2231; }
+  .tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 16px;
+    height: 2px;
+    background: #58a6ff;
+    border-radius: 1px;
+  }
+  .tab.dragging { opacity: 0.5; background: #1a2030; }
+  .tab.drag-over { border-left: 2px solid #58a6ff; }
+  .tab .dot { width: 6px; height: 6px; border-radius: 50%; background: #2ea043; flex-shrink: 0; }
+  .tab-label { pointer-events: none; }
+  .tab-label-input {
+    background: transparent;
+    border: 1px solid #58a6ff;
+    border-radius: 4px;
+    color: #c9d1d9;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    padding: 2px 6px;
+    width: 80px;
+    outline: none;
+  }
+
+  .tab-add {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    margin: 0 4px;
+    font-size: 20px;
+    color: #333a45;
+    border: 1px dashed #252b36;
+    background: none;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.15s;
+  }
+  .tab-add:active { color: #58a6ff; border-color: #58a6ff; }
+
+  .terminal-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  .terminal-frame {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: none;
+    background: #0a0e14;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .terminal-frame.active { display: block; }
+
+  .context-menu {
+    display: none;
+    position: fixed;
+    background: #1c2231;
+    border: 1px solid #2a3140;
+    border-radius: 12px;
+    padding: 6px 0;
+    z-index: 100;
+    min-width: 160px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  .context-menu.show { display: block; }
+  .context-menu-item {
+    display: block;
+    width: 100%;
+    padding: 12px 18px;
+    font-size: 14px;
+    color: #c9d1d9;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+  }
+  .context-menu-item:active { background: #252d3d; }
+  .context-menu-item.danger { color: #f85149; }
+  .context-menu-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 99;
+  }
+  .context-menu-overlay.show { display: block; }
+
+  .quick-actions {
+    display: flex;
+    gap: 6px;
+    background: #12161d;
+    border-top: 1px solid #1e2530;
+    padding: 8px 12px;
+    flex-shrink: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .quick-actions::-webkit-scrollbar { display: none; }
+  .qbtn {
+    flex-shrink: 0;
+    padding: 7px 14px;
+    border-radius: 16px;
+    border: 1px solid #252b36;
+    background: #1c2231;
+    color: #8b949e;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .qbtn:active { background: #252d3d; color: #c9d1d9; }
+</style>
+</head>
+<body>
+
+<div class="tab-bar" id="tabBar">
+  <button class="tab-add" id="addBtn" title="New terminal">+</button>
+</div>
+<div class="terminal-container" id="terminals"></div>
+
+<div class="quick-actions">
+  <button class="qbtn" onclick="qsend('claude --dangerously-skip-permissions')" style="border-color:#1a3a2a;color:#3fb950">claude</button>
+  <button class="qbtn" onclick="sendKey('1')" style="border-color:#2a3a3a;color:#58a6ff;min-width:36px">1</button>
+  <button class="qbtn" onclick="sendKey('2')" style="border-color:#2a3a3a;color:#58a6ff;min-width:36px">2</button>
+  <button class="qbtn" onclick="sendKey('3')" style="border-color:#2a3a3a;color:#58a6ff;min-width:36px">3</button>
+  <button class="qbtn" onclick="qsend('\x03')" style="border-color:#3a1a1a;color:#f85149">ctrl+c</button>
+  <button class="qbtn" onclick="qsend('commit all changes with a good message and push to github')" style="border-color:#1a2a3a;color:#58a6ff">commit & push</button>
+  <button class="qbtn" onclick="qsend('build and deploy this project with pm2 on the next available port. give me the URL')" style="border-color:#3a2a1a;color:#d29922">deploy</button>
+  <button class="qbtn" onclick="qsend('start the dev server')">dev</button>
+  <button class="qbtn" onclick="qsend('show me a summary of what we have so far')">status</button>
+  <button class="qbtn" onclick="restartTab()" style="border-color:#2a2a3a;color:#bc8cff">restart</button>
+</div>
+
+<div class="context-menu-overlay" id="menuOverlay" ontouchstart="closeMenu()" onclick="closeMenu()"></div>
+<div class="context-menu" id="contextMenu">
+  <button class="context-menu-item" id="menuRename">Rename</button>
+  <button class="context-menu-item" id="menuReload">Reload</button>
+  <button class="context-menu-item danger" id="menuClose">Close tab</button>
+</div>
+
+<script>
+const HOST = '100.64.86.7';
+const BASE_PORT = 7682;
+const MAX_TABS = 8;
+const STORAGE_KEY = 'astral-tabs-v3';
+
+let tabs = [];
+let activeIndex = -1;
+let menuTabIndex = -1;
+
+const tabBar = document.getElementById('tabBar');
+const addBtn = document.getElementById('addBtn');
+const terminalsEl = document.getElementById('terminals');
+const contextMenu = document.getElementById('contextMenu');
+const menuOverlay = document.getElementById('menuOverlay');
+
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (saved && saved.length > 0) return saved;
+  } catch(e) {}
+  return [{ label: 'terminal', port: 0 }];
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(tabs.map(t => ({ label: t.label, port: t.port }))));
+}
+
+function render() {
+  tabBar.querySelectorAll('.tab').forEach(t => t.remove());
+  terminalsEl.innerHTML = '';
+
+  tabs.forEach((tab, i) => {
+    const el = document.createElement('button');
+    el.className = 'tab' + (i === activeIndex ? ' active' : '');
+    el.dataset.index = i;
+    el.innerHTML = `<span class="dot"></span><span class="tab-label">${tab.label}</span>`;
+    el.onclick = () => switchTab(i);
+
+    let pressTimer, startX, startY;
+    el.addEventListener('touchstart', (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      pressTimer = setTimeout(() => openMenu(i, startX, startY), 500);
+    }, { passive: true });
+    el.addEventListener('touchend', () => clearTimeout(pressTimer));
+    el.addEventListener('touchmove', (e) => {
+      const dx = Math.abs(e.touches[0].clientX - startX);
+      const dy = Math.abs(e.touches[0].clientY - startY);
+      if (dx > 10 || dy > 10) clearTimeout(pressTimer);
+    });
+
+    el.draggable = true;
+    el.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', i); el.classList.add('dragging'); });
+    el.addEventListener('dragend', () => el.classList.remove('dragging'));
+    el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('drag-over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      reorderTabs(parseInt(e.dataTransfer.getData('text/plain')), i);
+    });
+
+    tabBar.insertBefore(el, addBtn);
+
+    const frame = document.createElement('iframe');
+    frame.className = 'terminal-frame' + (i === activeIndex ? ' active' : '');
+    frame.id = 'frame-' + i;
+    frame.setAttribute('allow', 'clipboard-read; clipboard-write');
+    const port = BASE_PORT + tab.port;
+    if (i === activeIndex) {
+      frame.src = 'http://' + HOST + ':' + port;
+    } else {
+      frame.dataset.src = 'http://' + HOST + ':' + port;
+    }
+    terminalsEl.appendChild(frame);
+  });
+
+  addBtn.style.display = tabs.length >= MAX_TABS ? 'none' : 'flex';
+  saveState();
+}
+
+function switchTab(i) {
+  activeIndex = i;
+  const frame = document.getElementById('frame-' + i);
+  if (frame && !frame.src && frame.dataset.src) frame.src = frame.dataset.src;
+  render();
+}
+
+function addTab() {
+  if (tabs.length >= MAX_TABS) return;
+  const usedPorts = tabs.map(t => t.port);
+  let port = 0;
+  while (usedPorts.includes(port)) port++;
+  tabs.push({ label: 'term ' + (tabs.length + 1), port });
+  switchTab(tabs.length - 1);
+}
+
+function closeTab(i) {
+  if (tabs.length <= 1) return;
+  tabs.splice(i, 1);
+  if (activeIndex >= tabs.length) activeIndex = tabs.length - 1;
+  render();
+}
+
+function reorderTabs(from, to) {
+  if (from === to) return;
+  const [moved] = tabs.splice(from, 1);
+  tabs.splice(to, 0, moved);
+  if (activeIndex === from) activeIndex = to;
+  else if (from < activeIndex && to >= activeIndex) activeIndex--;
+  else if (from > activeIndex && to <= activeIndex) activeIndex++;
+  render();
+}
+
+function renameTab(i) {
+  closeMenu();
+  const tabEl = tabBar.querySelectorAll('.tab')[i];
+  const labelEl = tabEl.querySelector('.tab-label');
+  const input = document.createElement('input');
+  input.className = 'tab-label-input';
+  input.value = tabs[i].label;
+  input.maxLength = 12;
+  labelEl.replaceWith(input);
+  input.focus();
+  input.select();
+  const finish = () => { tabs[i].label = input.value.trim() || tabs[i].label; render(); };
+  input.addEventListener('blur', finish);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
+}
+
+function openMenu(i, x, y) {
+  menuTabIndex = i;
+  contextMenu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
+  contextMenu.style.top = Math.min(y - 60, window.innerHeight - 150) + 'px';
+  contextMenu.classList.add('show');
+  menuOverlay.classList.add('show');
+}
+
+function closeMenu() {
+  contextMenu.classList.remove('show');
+  menuOverlay.classList.remove('show');
+  menuTabIndex = -1;
+}
+
+document.getElementById('menuRename').onclick = () => renameTab(menuTabIndex);
+document.getElementById('menuReload').onclick = () => {
+  const frame = document.getElementById('frame-' + menuTabIndex);
+  if (frame) frame.src = frame.src;
+  closeMenu();
+};
+document.getElementById('menuClose').onclick = () => { closeTab(menuTabIndex); closeMenu(); };
+addBtn.onclick = addTab;
+
+// ─── Send commands via tmux API ───
+const SESSIONS = ['claude','dev','git','misc','term5','term6','term7','term8'];
+
+function getActiveSession() {
+  if (activeIndex < 0 || activeIndex >= tabs.length) return 'claude';
+  return SESSIONS[tabs[activeIndex].port] || 'claude';
+}
+
+function sendToTerminal(text) {
+  fetch('/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session: getActiveSession(), text })
+  });
+}
+
+function sendCtrlC() {
+  fetch('/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session: getActiveSession(), ctrl_c: true })
+  });
+}
+
+function qsend(cmd) {
+  if (cmd === '\x03') sendCtrlC();
+  else sendToTerminal(cmd);
+}
+
+function sendKey(key) {
+  fetch('/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session: getActiveSession(), text: key, no_enter: true })
+  });
+}
+
+function restartTab() {
+  fetch('/restart', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session: getActiveSession() })
+  }).then(() => {
+    setTimeout(() => {
+      const frame = document.getElementById('frame-' + activeIndex);
+      if (frame) frame.src = frame.src;
+    }, 500);
+  });
+}
+
+// Init
+tabs = loadState().map((t, i) => ({ label: t.label, port: t.port ?? i }));
+activeIndex = 0;
+render();
+</script>
+</body>
+</html>
