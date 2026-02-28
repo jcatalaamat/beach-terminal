@@ -1,23 +1,23 @@
 #!/bin/bash
-PROJECTS_DIR="$HOME/astral-workspace"
-cd "$PROJECTS_DIR"
+cd "$HOME/projects/astral-system"
 
 clear
 echo ""
-echo "  ASTRAL WORKSPACE"
+echo "  ASTRAL SYSTEM"
 echo "  ────────────────"
 echo ""
+echo "  Apps:"
 
-for dir in "$PROJECTS_DIR"/*/; do
+for dir in "$HOME/projects/astral-system/apps"/*/; do
   [ -d "$dir" ] || continue
   name=$(basename "$dir")
-  [[ "$name" == "node_modules" || "$name" == ".claude" ]] && continue
+  [[ "$name" == "client-starter" ]] && continue
   echo "    $name"
 done
 
-count=$(ls -d "$PROJECTS_DIR"/*/ 2>/dev/null | wc -l | tr -d ' ')
+count=$(ls -d "$HOME/projects/astral-system/apps"/*/ 2>/dev/null | grep -v client-starter | wc -l | tr -d ' ')
 if [[ "$count" == "0" ]]; then
-  echo "    (empty)"
+  echo "    (none yet)"
 fi
 
 echo ""

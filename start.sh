@@ -17,7 +17,7 @@ for i in {0..7}; do
   env -i HOME="$HOME" USER="$USER" PATH="$PATH" SHELL=/bin/zsh TERM=xterm-256color \
     tmux has-session -t "$SESSION" 2>/dev/null || \
     env -i HOME="$HOME" USER="$USER" PATH="$PATH" SHELL=/bin/zsh TERM=xterm-256color \
-    tmux new-session -d -s "$SESSION" -c "$HOME/astral-workspace" "$LAUNCHER"
+    tmux new-session -d -s "$SESSION" -c "$HOME/projects/astral-system" "$LAUNCHER"
 
   nohup env -i HOME="$HOME" USER="$USER" PATH="$PATH" SHELL=/bin/zsh TERM=xterm-256color \
     ttyd -W -t scrollback=10000 -p $PORT tmux attach-session -t "$SESSION" > /tmp/ttyd-$PORT.log 2>&1 &
